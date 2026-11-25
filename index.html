@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#1c6e8c">
+<meta name="theme-color" content="#2563EB">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>دفتر حساب</title>
+<title>Rikad</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -46,6 +46,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 h1{font-size:calc(20px*var(--fs));margin:0}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.2px}
+.brand .logo{flex:none}
 h2{font-size:calc(16px*var(--fs));margin:0 0 6px}
 h3{font-size:calc(14.5px*var(--fs));margin:14px 0 2px}
 .top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 0 6px}
@@ -243,7 +245,7 @@ input[type=range]{padding:0;border:0;background:transparent}
 </style>
 
 <div id="app">
-  <header class="top"><h1>دفتر حساب</h1><button class="badge" id="mode" data-act="help" aria-label="راهنما و وضعیت ذخیره‌سازی"></button></header>
+  <header class="top"><h1 class="brand" dir="ltr"><svg class="logo" viewBox="0 0 80 80" width="30" height="30" fill="none" aria-hidden="true"><rect width="80" height="80" rx="20" fill="#2563EB"/><polyline points="18,56 32,38 46,46 62,24" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="62" cy="24" r="4.5" fill="white"/><line x1="16" y1="60" x2="64" y2="60" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/></svg><span>Rikad</span></h1><button class="badge" id="mode" data-act="help" aria-label="راهنما و وضعیت ذخیره‌سازی"></button></header>
   <main id="main"></main>
   <button class="fab" id="fab" data-act="new">+ تراکنش جدید</button>
   <nav class="nav" id="nav" aria-label="بخش‌ها"></nav>
@@ -263,10 +265,11 @@ var MONTHS=['فروردین','اردیبهشت','خرداد','تیر','مردا�
 var DEFAULT_ACC=['نقد','کارت بانکی','حساب پس‌انداز'];
 function $(s){return document.querySelector(s)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
-function faD(n){return String(n).replace(/\d/g,function(d){return '۰۱۲۳۴۵۶۷۸۹'[d]})}
+function numEn(){return typeof P!=='undefined'&&P&&P.num==='en'}
+function faD(n){return numEn()?String(n):String(n).replace(/\d/g,function(d){return '۰۱۲۳۴۵۶۷۸۹'[d]})}
 function enD(s){return String(s).replace(/[۰-۹]/g,function(d){return '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)}).replace(/[٠-٩]/g,function(d){return '٠١٢٣٤٥٦٧٨٩'.indexOf(d)}).replace(/[٬،]/g,',').replace(/٫/g,'.')}
 function toEn(s){return String(s).replace(/[۰-۹]/g,function(d){return '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)})}
-function money(n){return faD(Math.round(n).toLocaleString('en-US')).replace(/,/g,'٬')}
+function money(n){var t=Math.round(n).toLocaleString('en-US');return numEn()?t:faD(t).replace(/,/g,'٬')}
 function pad(n){return n<10?'0'+n:''+n}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
 function normQ(s){return enD(String(s||'')).toLowerCase().replace(/ي/g,'ی').replace(/ك/g,'ک').trim()}
@@ -672,12 +675,13 @@ function viewSet(){
   if(pg==='help'){
   h+='<section class="card"><h2>متن‌های راهنما</h2><p class="hint keep">توضیح‌های کوتاه زیر عنوان بخش‌ها را نشان بده یا پنهان کن.</p>'+optBtns('hm',[['all','نمایش همه'],['icon','فقط با ⓘ'],['off','پنهان کامل']],P.hm||'icon')+'</section>';
   h+='<section class="card"><h2>راهنما</h2><p class="hint">توضیح هر بخش و روش حفظ اطلاعات.</p><button class="btn pri" data-act="help">باز کردن راهنما</button></section>';
-  h+='<section class="card"><h2>درباره‌ی برنامه</h2><p class="hint keep">دفتر حساب · نسخه‌ی '+faD(APP_VER)+'</p>'+(window.claude?'':'<button class="btn" data-act="checkUpdate">بررسی نسخه‌ی جدید</button>')+'</section>';
+  h+='<section class="card"><h2>درباره‌ی برنامه</h2><p class="hint keep">Rikad · نسخه‌ی '+faD(APP_VER)+'</p>'+(window.claude?'':'<button class="btn" data-act="checkUpdate">بررسی نسخه‌ی جدید</button>')+'</section>';
   }
   if(pg==='look'){
   h+='<section class="card"><h2>ظاهر</h2><label>حالت نمایش</label>'+optBtns('theme',[['auto','خودکار (مثل گوشی)'],['light','روشن'],['dark','تاریک']],P.theme)+
     palPicker()+'<label>فونت</label>'+optBtns('font',[['def','پیش‌فرض'],['sans','ساده'],['serif','نسخ'],['mono','تایپ‌رایتر']],P.font)+
     '<label>اندازه‌ی نوشته‌ها</label>'+optBtns('fs',[[0.9,'کوچک'],[1,'متوسط'],[1.15,'بزرگ'],[1.3,'خیلی بزرگ']],P.fs)+
+    '<label>نوع اعداد</label>'+optBtns('num',[['fa','فارسی (۱۲۳)'],['en','لاتین (123)']],P.num||'fa')+
     '<label>اندازه‌ی مبلغ‌ها</label>'+optBtns('as',[[1,'کوچک'],[1.2,'متوسط'],[1.4,'بزرگ'],[1.6,'خیلی بزرگ']],P.as)+
     '<label>فاصله‌ی ردیف‌ها</label>'+optBtns('den',[['cmp','فشرده'],['cozy','راحت']],P.den)+
     '<label>ضخامت خط‌ها</label>'+optBtns('bw',[['1','نازک'],['1.5','متوسط'],['2.5','ضخیم']],P.bw)+
@@ -865,7 +869,7 @@ function backupObj(){return {app:'daftar-hesab',v:2,cats:S.cats.map(function(c){
 function csvCell(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
 function importData(text){
   var d;try{d=JSON.parse(text)}catch(e){toast('فایل معتبر نیست');return}
-  if(!d||!Array.isArray(d.tx)){toast('این فایل پشتیبان دفتر حساب نیست');return}
+  if(!d||!Array.isArray(d.tx)){toast('این فایل پشتیبان Rikad نیست');return}
   if(Array.isArray(d.cats)){
     var have=new Set(S.cats.map(function(c){return c.id}));
     d.cats.forEach(function(c){if(c&&c.id&&c.name&&!have.has(String(c.id))){S.cats.push({id:String(c.id),name:String(c.name),parent:c.parent?String(c.parent):null,kind:(c.kind==='inc'||c.kind==='exp')?c.kind:''})}});
@@ -1113,8 +1117,8 @@ function renderDP(){
 }
 var DPF={from:['from','fromIso'],to:['to','toIso'],pfrom:['pFrom','pFromIso'],pto:['pTo','pToIso']};
 /* ---------- prefs, sound, draft ---------- */
-var LSP='daftar-hesab-prefs', LSD='daftar-hesab-draft', APP_VER='2.28';
-var P={pal:'def',cu:{acc:'#1c6e8c',inc:'#17734a',exp:'#b0372b',xf:'#6a63d6'},hm:'icon',theme:'auto',font:'def',fs:1,as:1.2,den:'cmp',bw:'1.5',snd:true,tone:'ding',vol:0.6,custom:false,customName:''};
+var LSP='daftar-hesab-prefs', LSD='daftar-hesab-draft', APP_VER='2.29';
+var P={num:'fa',pal:'def',cu:{acc:'#1c6e8c',inc:'#17734a',exp:'#b0372b',xf:'#6a63d6'},hm:'icon',theme:'auto',font:'def',fs:1,as:1.2,den:'cmp',bw:'1.5',snd:true,tone:'ding',vol:0.6,custom:false,customName:''};
 var FONTS={def:"'Vazirmatn',Tahoma,'Segoe UI',system-ui,sans-serif",sans:"system-ui,'Noto Sans Arabic',sans-serif",serif:"'Noto Naskh Arabic','Droid Naskh Shift',serif",mono:"'Droid Sans Mono',monospace"};
 function loadPrefs(){try{var d=JSON.parse(localStorage.getItem(LSP)||'null');if(d)for(var k in d)if(k in P)P[k]=d[k]}catch(e){}}
 function savePrefs(){try{localStorage.setItem(LSP,JSON.stringify(P))}catch(e){}}
@@ -1418,7 +1422,7 @@ function shareBackup(){
   try{
     var f=new File([txt],name,{type:'application/json'});
     if(navigator.canShare&&navigator.canShare({files:[f]})){
-      navigator.share({files:[f],title:'پشتیبان دفتر حساب'}).then(function(){lbSet();renderMain()}).catch(function(e){if(e&&e.name!=='AbortError')toast('ارسال انجام نشد')});
+      navigator.share({files:[f],title:'پشتیبان Rikad'}).then(function(){lbSet();renderMain()}).catch(function(e){if(e&&e.name!=='AbortError')toast('ارسال انجام نشد')});
       return;
     }
   }catch(e){}

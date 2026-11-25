@@ -1,13 +1,13 @@
 {
- "name": "دفتر حساب",
- "short_name": "دفتر حساب",
+ "name": "Rikad",
+ "short_name": "Rikad",
  "lang": "fa",
  "dir": "rtl",
  "start_url": "./index.html",
  "scope": "./",
  "display": "standalone",
  "background_color": "#f3f5f7",
- "theme_color": "#1c6e8c",
+ "theme_color": "#2563EB",
  "icons": [
   {
    "src": "icon-192.png",
