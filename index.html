@@ -1,3 +1,4 @@
+```html
 <!doctype html>
 <html lang="fa" dir="rtl">
 <head>
@@ -230,6 +231,9 @@ input[type=range]{padding:0;border:0;background:transparent}
 
 .pickbtn{width:100%;text-align:start;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dd{background:var(--card,var(--bg)) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23888' stroke-width='2'/%3E%3C/svg%3E") no-repeat left 12px center;padding-left:32px}
+.rcp-box{margin-top:6px;display:flex;flex-direction:column;gap:8px}
+.rcp-prev{max-width:100%;max-height:220px;border-radius:10px;border:var(--bw) solid var(--line);object-fit:contain;background:var(--surface)}
+.rcp-tag{font-size:calc(12px*var(--fs));color:var(--muted);margin-inline-start:6px}
 .drawer{overscroll-behavior:contain;border:var(--bw) solid var(--line);border-radius:10px;background:var(--bg);padding:6px;max-height:55vh;overflow:auto;margin-top:2px}
 .pkwrap{display:flex;align-items:center;gap:4px;margin-top:5px}
 .pkrow{display:flex;align-items:center;gap:10px;flex:1;min-width:0;text-align:start;background:var(--surface);border:var(--bw) solid var(--line);border-radius:10px;padding:9px 12px}
@@ -329,7 +333,7 @@ function isoFromMs(ms){var d=new Date(ms);return isoOf(d.getFullYear(),d.getMont
 var S={cats:[],accounts:[],people:[],loanCats:{},tx:new Map(),mode:'local',ready:false,slow:false,metaRef:null,txRef:null,err:''};
 var V={tab:'tx',rXfer:false,dr:{acc:false,cat:false},drExp:{},setPage:'',catKind:'exp',q:'',fAccs:[],fCats:[],fTypes:[],from:'',to:'',fromIso:'',toIso:'',fOpen:false,sort:'date',dir:'desc',rType:'exp',
        addUnder:'',renaming:'',confDel:'',rCat:false,sel:null,selTab:'tx',selArm:false,cpOpen:false,cpMode:'',cpOff:0,cpR:['',''],ordCat:false,ordAcc:false,lim:300,rSort:'date',rDir:'desc',rLim:300,exp:{},person:'',pFrom:'',pTo:'',pFromIso:'',pToIso:'',pConf:false,pRen:false};
-var F=null, H=false, PK=null, PKO=false;
+var F=null, H=false, PK=null, PKO=false, RCP_CACHE=new Map();
 var LS='daftar-hesab-v1', LSB='daftar-hesab-lastbackup';
 function migTx(t){
   if(t&&t.title){
@@ -352,7 +356,7 @@ function backupStale(){
   if(S.mode!=='local'||!S.tx.size)return false;
   var lb=lbGet();return !lb||(Date.now()-lb)>7*86400000;
 }
-function cleanTx(t){return {date:t.date,amount:t.amount,type:t.type,account:t.account||'',account2:t.account2||'',note:t.note||'',cat:t.cat||'',ts:t.ts||Date.now(),ut:t.ut||0,loan:t.loan||'',person:t.person||''}}
+function cleanTx(t){return {date:t.date,amount:t.amount,type:t.type,account:t.account||'',account2:t.account2||'',note:t.note||'',cat:t.cat||'',hasReceipt:!!t.hasReceipt,ts:t.ts||Date.now(),ut:t.ut||0,loan:t.loan||'',person:t.person||''}}
 function putTx(t){
   t.ut=Date.now();
   S.tx.set(t.id,t);
@@ -361,6 +365,8 @@ function putTx(t){
 }
 function delTx(id){
   S.tx.delete(id);
+  RCP_CACHE.delete(id);
+  delReceipt(id).catch(function(){});
   if(S.mode==='db'){return S.txRef.doc(id).delete().catch(function(e){toast('حذف نشد ('+(e&&e.code||'خطا')+')')})}
   lsSave();return Promise.resolve();
 }
@@ -421,8 +427,8 @@ function accountList(){
 /* ---------- filtering & sorting ---------- */
 function hay(t){
   var j=t.date?isoToJ(t.date):null, ds='';
-  if(j){var a=j[0]+'/'+pad(j[1])+'/'+pad(j[2]),b=j[0]+'/'+j[1]+'/'+j[2];ds=a+' '+b+' '+a.replace(/\//g,'-')+' '+MONTHS[j[1]-1]+' '+t.date}
-  return normQ([t.note,t.account,catPath(t.cat),ds,t.amount,(t.type==='inc'?'درآمد':t.type==='xfer'?'انتقال '+(t.account2||''):'هزینه'),personName(t.person),LOAN_LABEL[t.loan]||''].join(' '));
+  if(j){var a=j[0]+'/'+pad(j[1])+'/'+pad(j[2]),b=j[0]+'/'+j[1]+'/'+pad(j[2]);ds=a+' '+b+' '+a.replace(/\//g,'-')+' '+MONTHS[j[1]-1]+' '+t.date}
+  return normQ([t.note,t.account,catPath(t.cat),ds,t.amount,(t.type==='inc'?'درآمد':t.type==='xfer'?'انتقال '+(t.account2||''):'هزینه'),t.hasReceipt?'رسید عکس':'',personName(t.person),LOAN_LABEL[t.loan]||''].join(' '));
 }
 function filtered(opt){
   opt=opt||{};
@@ -569,7 +575,8 @@ function rLine(headH,note){
   return '<div class="r-line">'+(headH?'<span class="r-t r-h">'+headH+'</span>':'')+(note?'<span class="r-n">'+esc(note)+'</span>':'')+(headH||note?'':'&nbsp;')+'</div>';
 }
 function rowCore(t,ck,headH,note,acc,extra){
-  return '<button class="row t-'+(t.type==='inc'?'inc':t.type==='xfer'?'xfer':'exp')+(extra||'')+'" data-act="'+(V.sel?'selTog':'edit')+'" data-id="'+esc(t.id)+'"><div class="r-date">'+ck+dateHtml(t.date)+'</div>'+amtHtml(t)+'<div class="r-bot">'+rLine(headH,note)+(acc?'<div class="r-acc">'+esc(acc)+'</div>':'')+'</div></button>';
+  var tag=t.hasReceipt?'<span class="rcp-tag" title="رسید پیوست دارد">📎</span>':'';
+  return '<button class="row t-'+(t.type==='inc'?'inc':t.type==='xfer'?'xfer':'exp')+(extra||'')+'" data-act="'+(V.sel?'selTog':'edit')+'" data-id="'+esc(t.id)+'"><div class="r-date">'+ck+dateHtml(t.date)+tag+'</div>'+amtHtml(t)+'<div class="r-bot">'+rLine(headH,note)+(acc?'<div class="r-acc">'+esc(acc)+'</div>':'')+'</div></button>';
 }
 function rowHtml(t){
   var cp=catPath(t.cat),pn=t.person?((t.type==='inc'?'از ':'به ')+personName(t.person)):'',x=t.type==='xfer';
@@ -755,7 +762,7 @@ function openForm(id,preset){
   if(id&&!t)return;
   H=false;
   var dr=(!id&&!preset)?loadDraft():null,b=t||dr||null,accs=accountList();
-  F={id:id||null,type:b?(b.type||'exp'):'exp',delArm:false,cat:b?(b.cat||''):'',loan:'',person:b?(b.person||''):'',pplOpen:!!(b&&b.person),newP:false};
+  F={id:id||null,type:b?(b.type||'exp'):'exp',delArm:false,cat:b?(b.cat||''):'',loan:'',person:b?(b.person||''):'',pplOpen:!!(b&&b.person),newP:false,hasReceipt:!!(b&&b.hasReceipt),receiptBlob:null,receiptDirty:false};
   var dateStr=t?toEn(fmtJ(t.date)):(dr&&dr.date?dr.date:toEn(fmtJ(todayIso())));
   var h='<div class="panel" role="dialog" aria-modal="true" aria-label="'+(id?'ویرایش تراکنش':'تراکنش جدید')+'"><h2>'+(id?'ویرایش تراکنش':'تراکنش جدید')+'</h2>'+
   (dr?'<div class="warn">پیش‌نویس قبلی بازیابی شد. <button class="btn sm" data-act="draftClear">پاک کردن و شروع تازه</button></div>':'')+
@@ -765,14 +772,61 @@ function openForm(id,preset){
   '<label for="f-acc" id="f-accl">'+(F.type==='xfer'?'۳ — از حساب':'۳ — نوع حساب')+'</label><input id="f-acc" readonly autocomplete="off" value="'+esc(b?(b.account||''):(accs[0]||''))+'" placeholder="لمس: لیست حساب‌ها · لمس دوباره: تایپ" class="dd" data-act="fdr" data-id="f-chips"><div class="drawer" id="f-chips" hidden>'+accs.map(function(a){return '<button type="button" class="pkrow" data-act="pickAcc" data-id="'+esc(a)+'"><span class="box"></span><span>'+esc(a)+'</span></button>'}).join('')+'</div>'+
   '<div id="f-acc2box"'+(F.type==='xfer'?'':' hidden')+'><label for="f-acc2">به حساب</label><input id="f-acc2" readonly autocomplete="off" value="'+esc(b?(b.account2||''):(accs[1]||''))+'" placeholder="لمس: لیست حساب‌ها · لمس دوباره: تایپ" class="dd" data-act="fdr" data-id="f-chips2"><div class="drawer" id="f-chips2" hidden>'+accs.map(function(a){return '<button type="button" class="pkrow" data-act="pickAcc2" data-id="'+esc(a)+'"><span class="box"></span><span>'+esc(a)+'</span></button>'}).join('')+'</div></div>'+
   '<label for="f-note">۴ — توضیحات</label><textarea id="f-note" placeholder="مثلاً تعویض روغن">'+esc(b?(b.note||''):'')+'</textarea>'+
+  '<label for="f-rcp">۵ — عکس رسید یا فاکتور (اختیاری)</label><input type="file" id="f-rcp" accept="image/*" capture="environment" data-f="receipt"><div class="rcp-box" id="f-rcpbox"></div>'+
   '<div id="f-catbox"'+(F.type==='xfer'?' hidden':'')+'><label>دسته‌بندی</label><div id="f-catpick"></div>'+
   '<div style="margin-top:6px"><button class="btn sm ghost" data-act="toggleNewCat">＋ ساخت دسته یا زیردسته جدید</button></div><div id="f-newcat" hidden><div class="inl"><input id="f-ncn" placeholder="نام دسته جدید" aria-label="نام دسته جدید"></div><div class="inl"><select id="f-ncp" aria-label="والد دسته جدید"></select><button class="btn sm pri" data-act="addNewCat">افزودن</button></div></div>'+
   '</div><div class="err" id="f-err" role="alert"></div>'+
   '<div class="actions"><button class="btn pri" data-act="save">'+(id?'ذخیره تغییرات':'ثبت تراکنش')+'</button><button class="btn" data-act="close">انصراف</button>'+(id?'<button class="btn danger" data-act="delTx" id="f-del">حذف</button>':'')+'</div></div>';
   var sh=$('#sheet');sh.innerHTML=h;sh.hidden=false;
   document.body.style.overflow='hidden';
-  renderPicker();updDateHint();updAmtHint();
+  renderPicker();renderReceiptBox();updDateHint();updAmtHint();
+  if(id&&t.hasReceipt){getReceipt(id).then(function(blob){if(!F||F.id!==id||F.receiptDirty)return;if(blob){F.receiptBlob=blob;renderReceiptBox()}}).catch(function(){})}
   if(!id&&!dr&&!preset)$('#f-amt').focus();
+}
+function renderReceiptBox(){
+  var box=$('#f-rcpbox');if(!box||!F)return;
+  if(!F.receiptBlob&&!F.hasReceipt){box.innerHTML='';return}
+  var url=F.receiptBlob?URL.createObjectURL(F.receiptBlob):'';
+  var kb=F.receiptBlob?Math.max(1,Math.round(F.receiptBlob.size/1024))+' کیلوبایت':'ذخیره‌شده روی دستگاه';
+  box.innerHTML=(url?'<img class="rcp-prev" src="'+url+'" alt="پیش‌نمایش رسید">':'<div class="hint keep">رسید قبلاً ثبت شده است.</div>')+
+    '<div class="actions" style="margin-top:0;flex-wrap:wrap"><span class="hint keep" style="flex:1;margin:0">'+kb+'</span>'+(url?'<button type="button" class="btn sm" data-act="rcpDownload">ذخیره عکس</button>':'')+'<button type="button" class="btn sm danger" data-act="rcpRemove">حذف رسید</button></div>';
+  if(url)setTimeout(function(){URL.revokeObjectURL(url)},120000);
+}
+function compressImage(file){
+  return new Promise(function(res,rej){
+    if(!file||!file.type||file.type.indexOf('image/')!==0){rej(new Error('not_image'));return}
+    var img=new Image(),url=URL.createObjectURL(file);
+    img.onload=function(){
+      URL.revokeObjectURL(url);
+      var maxSide=1280,w=img.width,h=img.height;
+      if(w>maxSide||h>maxSide){if(w>=h){h=Math.round(h*maxSide/w);w=maxSide}else{w=Math.round(w*maxSide/h);h=maxSide}}
+      var cv=document.createElement('canvas');cv.width=w;cv.height=h;
+      var ctx=cv.getContext('2d');ctx.drawImage(img,0,0,w,h);
+      cv.toBlob(function(blob){if(blob)res(blob);else rej(new Error('toBlob_fail'))},'image/jpeg',0.78);
+    };
+    img.onerror=function(){URL.revokeObjectURL(url);rej(new Error('load_fail'))};
+    img.src=url;
+  });
+}
+function onReceiptPick(file){
+  if(!file||!F)return;
+  compressImage(file).then(function(blob){
+    if(!F)return;
+    F.receiptBlob=blob;F.hasReceipt=true;F.receiptDirty=true;
+    renderReceiptBox();toast('رسید فشرده و آماده شد');
+  }).catch(function(){toast('خواندن عکس انجام نشد')});
+}
+function rcpKey(id){return 'rcp_'+id}
+function getReceipt(id){
+  if(RCP_CACHE.has(id))return Promise.resolve(RCP_CACHE.get(id));
+  return idbGet(rcpKey(id)).then(function(b){if(b)RCP_CACHE.set(id,b);return b||null});
+}
+function saveReceipt(id,blob){
+  RCP_CACHE.set(id,blob);
+  return idbPut(rcpKey(id),blob);
+}
+function delReceipt(id){
+  return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction('kv','readwrite');tx.objectStore('kv').delete(rcpKey(id));tx.oncomplete=res;tx.onerror=function(){rej(tx.error)}})});
 }
 function renderPicker(keep){
   var el=$('#f-catpick');if(!el)return;
@@ -829,10 +883,17 @@ function saveForm(){
   if(!xfer&&F.pplOpen&&!F.person){err.textContent='شخص را انتخاب کنید یا یک دسته‌ی دیگر بزنید.';return}
   if(!xfer&&!F.person&&!cat){err.textContent='دسته‌بندی را انتخاب کنید.';F.drCat=true;renderPicker();return}
   if(F.person)cat='';
-  var old=F.id?S.tx.get(F.id):null,kind=F.type;
-  var t={id:F.id||uid(),date:iso,amount:amt,type:F.type,account:acc,account2:acc2,note:note,cat:cat,ts:old?old.ts:Date.now(),loan:F.person?(F.type==='inc'?'back':'lent'):'',person:F.person||''};
+  var old=F.id?S.tx.get(F.id):null,kind=F.type,txId=F.id||uid();
+  var keepRcp=F.receiptDirty?!!F.receiptBlob:!!(old&&old.hasReceipt);
+  var rcpBlob=F.receiptBlob,rcpDirty=F.receiptDirty;
+  var t={id:txId,date:iso,amount:amt,type:F.type,account:acc,account2:acc2,note:note,cat:cat,hasReceipt:keepRcp,ts:old?old.ts:Date.now(),loan:F.person?(F.type==='inc'?'back':'lent'):'',person:F.person||''};
   [acc,acc2].forEach(function(a){if(a&&accountList().indexOf(a)<0){S.accounts=accountList().concat(a);saveMeta()}})
-  clearDraft();closeForm();putTx(t);refreshView();playSound(kind==='inc'?'inc':'exp');toast(old?'تغییرات ذخیره شد':'تراکنش ثبت شد');
+  clearDraft();closeForm();
+  if(rcpDirty){
+    if(rcpBlob)saveReceipt(txId,rcpBlob).catch(function(){toast('ذخیره عکس رسید انجام نشد')});
+    else{RCP_CACHE.delete(txId);delReceipt(txId).catch(function(){})}
+  }
+  putTx(t);refreshView();playSound(kind==='inc'?'inc':'exp');toast(old?'تغییرات ذخیره شد':'تراکنش ثبت شد');
 }
 
 /* ---------- actions ---------- */
@@ -867,7 +928,7 @@ function saveAs(name,data,label,mime){
   try{
     var f=new File([blob],name,{type:mime});
     if(navigator.canShare&&navigator.canShare({files:[f]})){
-      return navigator.share({files:[f],title:name}).then(function(){return true}).catch(function(e){if(e&&e.name!=='AbortError')toast('ارسال انجام نشد');return false});
+      return navigator.share({files:[f],title:name}).then(function(){return true}).catch(function(e){if(!e||e.name!=='AbortError')toast('ارسال انجام نشد');return false});
     }
   }catch(e){}
   toast('در این مرورگر امکان انتخاب پوشه نیست؛ از «دانلود» استفاده کنید.');return Promise.resolve(false);
@@ -885,7 +946,7 @@ function importData(text){
   if(Array.isArray(d.people)){var hp=new Set(S.people.map(function(p){return p.id}));d.people.forEach(function(p){if(p&&p.id&&p.name&&!hp.has(String(p.id)))S.people.push({id:String(p.id),name:String(p.name)})})}
   if(d.loanCats&&typeof d.loanCats==='object'){for(var lk in d.loanCats){if(!S.loanCats[lk])S.loanCats[lk]=d.loanCats[lk]}}
   saveMeta();
-  var items=d.tx.filter(function(t){return t&&t.id&&t.date&&isFinite(t.amount)}).map(function(t){return migTx({id:String(t.id),title:t.title?String(t.title):'',date:String(t.date),amount:Number(t.amount),type:(t.type==='inc'||t.type==='xfer')?t.type:'exp',account:t.account||'',account2:t.account2||'',note:t.note||'',cat:t.cat||'',ts:t.ts||Date.now(),ut:Number(t.ut)||0,loan:LOAN_LABEL[t.loan]?t.loan:'',person:t.person?String(t.person):''})});
+  var items=d.tx.filter(function(t){return t&&t.id&&t.date&&isFinite(t.amount)}).map(function(t){return migTx({id:String(t.id),title:t.title?String(t.title):'',date:String(t.date),amount:Number(t.amount),type:(t.type==='inc'||t.type==='xfer')?t.type:'exp',account:t.account||'',account2:t.account2||'',note:t.note||'',cat:t.cat||'',hasReceipt:!!t.hasReceipt,ts:t.ts||Date.now(),ut:Number(t.ut)||0,loan:LOAN_LABEL[t.loan]?t.loan:'',person:t.person?String(t.person):''})});
   var todo=items.filter(function(t){var o=S.tx.get(t.id);return !o||(o.ut||0)<t.ut});
   var skipped=items.length-todo.length,i=0;
   function done(){toast(faD(todo.length)+' تراکنش اضافه یا به‌روز شد'+(skipped?'، '+faD(skipped)+' مورد بدون تغییر':''));renderMain()}
@@ -994,6 +1055,14 @@ var ACT={
   goSet:function(){closeForm();ACT.tab('set')},
   'new':function(){openForm(null)},
   edit:function(id){openForm(id)},
+  rcpRemove:function(){if(!F)return;F.receiptBlob=null;F.hasReceipt=false;F.receiptDirty=true;var inp=$('#f-rcp');if(inp)inp.value='';renderReceiptBox()},
+  rcpDownload:function(){
+    if(!F||!F.receiptBlob)return;
+    var a=document.createElement('a'),u=URL.createObjectURL(F.receiptBlob);
+    a.href=u;a.download='resid-'+(F.id||'tx')+'.jpg';document.body.appendChild(a);a.click();
+    setTimeout(function(){URL.revokeObjectURL(u);a.remove()},30000);
+    toast('عکس رسید ذخیره شد');
+  },
   close:function(){if(F)clearDraft();closeForm()},
   save:function(){saveForm()},
   ftype:function(id){if(F.loan)return;F.type=id;if(F.cat){var rt=rootOf(F.cat,catMap());if(rt&&catKind(rt)!==(id==='inc'?'inc':'exp'))F.cat=''}renderPicker();document.querySelectorAll('#f-seg button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.id===id)});applyFormType()},
@@ -1049,9 +1118,9 @@ var ACT={
   accDel:function(id){V.fAccs=V.fAccs.filter(function(a){return a!==id});S.accounts=accountList().filter(function(a){return a!==id});saveMeta();renderMain()},
   exportJson:function(){download('daftar-hesab-'+todayIso()+'.json',JSON.stringify(backupObj(),null,1),'پشتیبان','application/json').then(function(ok){if(ok){lbSet();if(H)openHelp();else renderMain();renderMode()}})},
   exportCsv:function(){
-    var rows=[['تاریخ شمسی','تاریخ میلادی','مبلغ','نوع','نوع حساب','دسته‌بندی','توضیحات','طرف حساب','نوع قرض']];
+    var rows=[['تاریخ شمسی','تاریخ میلادی','مبلغ','نوع','نوع حساب','دسته‌بندی','توضیحات','طرف حساب','نوع قرض','رسید']];
     Array.from(S.tx.values()).sort(function(a,b){return a.date<b.date?-1:1}).forEach(function(t){
-      rows.push([enD(fmtJ(t.date)),t.date,t.amount,t.type==='inc'?'درآمد':t.type==='xfer'?'انتقال':'هزینه',t.type==='xfer'?t.account+' ← '+(t.account2||''):t.account,catPath(t.cat),t.note,personName(t.person),LOAN_LABEL[t.loan]||'']);
+      rows.push([enD(fmtJ(t.date)),t.date,t.amount,t.type==='inc'?'درآمد':t.type==='xfer'?'انتقال':'هزینه',t.type==='xfer'?t.account+' ← '+(t.account2||''):t.account,catPath(t.cat),t.note,personName(t.person),LOAN_LABEL[t.loan]||'',t.hasReceipt?'دارد':'ندارد']);
     });
     download('daftar-hesab-'+todayIso()+'.csv','﻿'+rows.map(function(r){return r.map(csvCell).join(',')}).join('\r\n'),'فایل CSV','text/csv');
   }
@@ -1084,6 +1153,7 @@ function onField(e){
   else if(f==='pfrom'||f==='pto'){var key=f==='pfrom'?'pFrom':'pTo';V[key]=v;var iso2=v.trim()?parseJ(v):'';el.classList.toggle('invalid',!!v.trim()&&!iso2);V[key+'Iso']=iso2||'';if(e.type==='change')renderMain()}
   else if(f==='vol'){P.vol=Number(v)/100;savePrefs()}
   else if(f==='soundfile'&&e.type==='change'){var sf=el.files&&el.files[0];el.value='';pickSoundFile(sf)}
+  else if(f==='receipt'&&e.type==='change'){var rf=el.files&&el.files[0];el.value='';onReceiptPick(rf)}
   else if(f==='fdate')updDateHint();
   else if(f==='famt')updAmtHint();
   else if(f==='import'&&e.type==='change'){
@@ -1319,7 +1389,7 @@ function xlsxBuild(rows,widths){
   });
   var last=col(widths.length-1)+rows.length;
   var sheet='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView rightToLeft="1" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>'+widths.map(function(w,i){return '<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+w+'" customWidth="1"/>'}).join('')+'</cols><sheetData>'+sd+'</sheetData><autoFilter ref="A1:'+col(widths.length-1)+'1"/></worksheet>';
-  var styles='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Tahoma"/></font><font><b/><sz val="11"/><name val="Tahoma"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFDDE7F0"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"><alignment horizontal="right"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"><alignment horizontal="center"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1"><alignment horizontal="right"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  var styles='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Tahoma"/></font><font><b/><sz val="11"/><name val="Tahoma"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFDDE7F0"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"><alignment horizontal="right"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"><alignment horizontal="center"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"><alignment horizontal="right"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
   var ct='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>';
   var rels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
   var wb='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="گزارش" sheetId="1" r:id="rId1"/></sheets></workbook>';
@@ -1568,3 +1638,5 @@ init();
 
 </body>
 </html>
+
+```
