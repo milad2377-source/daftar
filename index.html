@@ -333,7 +333,7 @@ function isoFromMs(ms){var d=new Date(ms);return isoOf(d.getFullYear(),d.getMont
 var S={cats:[],accounts:[],people:[],loanCats:{},tx:new Map(),mode:'local',ready:false,slow:false,metaRef:null,txRef:null,err:''};
 var V={tab:'tx',rXfer:false,dr:{acc:false,cat:false},drExp:{},setPage:'',catKind:'exp',q:'',fAccs:[],fCats:[],fTypes:[],from:'',to:'',fromIso:'',toIso:'',fOpen:false,sort:'date',dir:'desc',rType:'exp',
        addUnder:'',renaming:'',confDel:'',rCat:false,sel:null,selTab:'tx',selArm:false,cpOpen:false,cpMode:'',cpOff:0,cpR:['',''],ordCat:false,ordAcc:false,lim:300,rSort:'date',rDir:'desc',rLim:300,exp:{},person:'',pFrom:'',pTo:'',pFromIso:'',pToIso:'',pConf:false,pRen:false};
-var F=null, H=false, PK=null, PKO=false, RCP_CACHE=new Map();
+var F=null, H=false, PK=null, PKO=false, RCP_CACHE=new Map(), DIR_HANDLE=null, DIR_NAME='';
 var LS='daftar-hesab-v1', LSB='daftar-hesab-lastbackup';
 function migTx(t){
   if(t&&t.title){
@@ -720,11 +720,16 @@ function viewSet(){
     '<div class="inl"><input id="a-new" placeholder="حساب جدید، مثلاً کارت ملی" data-enter="accAdd" aria-label="نام حساب"><button class="btn pri" data-act="accAdd">افزودن</button></div></section>';
   }
   if(pg==='bak'){
+  var dirSupported=!!window.showDirectoryPicker;
   h+='<section class="card"><h2>پشتیبان‌گیری و انتقال</h2><p class="hint">'+(S.mode==='db'?'داده‌ها در حساب Claude شما ذخیره می‌شوند. پشتیبان فایل جدا برای اطمینان بیشتر است. ':'داده‌ها فقط روی همین مرورگر ذخیره شده‌اند و با پاک شدن اطلاعات مرورگر یا حذف اپ از بین می‌روند. ')+'</p><p class="hint"><b>'+lbText()+'</b></p>'+
-    '<div class="actions" style="flex-wrap:wrap"><button class="btn pri" data-act="exportJson">ذخیره پشتیبان (JSON)</button><button class="btn" data-act="shareBackup">ارسال پشتیبان (تلگرام و...)</button></div>'+
-    '<div class="actions" style="flex-wrap:wrap"><button class="btn" data-act="exportCsv">خروجی CSV</button></div>'+
-    '<label for="imp">بازیابی از فایل پشتیبان (JSON)</label><input type="file" id="imp" accept=".json,application/json" data-f="import"><p class="hint" style="margin-top:6px">چیزی پاک نمی‌شود. تراکنش‌های جدید اضافه می‌شوند و اگر یک تراکنش در هر دو جا باشد، نسخه‌ی تازه‌تر می‌ماند.</p>'+
-    ''+'</section>';
+    '<div class="actions" style="flex-wrap:wrap"><button class="btn pri" data-act="exportZip">ذخیره پشتیبان کامل با عکس‌ها (ZIP)</button><button class="btn" data-act="shareZip">ارسال پشتیبان کامل (ZIP)</button></div>'+
+    '<div class="actions" style="flex-wrap:wrap"><button class="btn sm" data-act="exportJson">پشتیبان متنی (JSON)</button><button class="btn sm" data-act="exportCsv">خروجی CSV</button></div>'+
+    '<label for="imp">بازیابی از فایل پشتیبان (ZIP یا JSON)</label><input type="file" id="imp" accept=".zip,.json,application/zip,application/json" data-f="import"><p class="hint" style="margin-top:6px">چیزی پاک نمی‌شود. تراکنش‌های جدید و عکس‌های رسید آن‌ها اضافه می‌شوند.</p></section>';
+  h+='<section class="card"><h2>ذخیره خودکار در پوشه واقعی گوشی</h2><p class="hint keep">اگر یک پوشه در حافظه داخلی گوشی انتخاب کنید، تمام عکس‌های رسید به‌محض ثبت در آن پوشه واقعی ذخیره می‌شوند تا حتی با پاک کردن کامل مرورگر هم سالم بمانند.</p>'+
+    (dirSupported
+      ?'<div class="status"><b>وضعیت پوشه: '+(DIR_NAME?esc(DIR_NAME):'متصل نشده')+'</b></div><div class="actions" style="flex-wrap:wrap"><button class="btn pri" data-act="pickDir">'+(DIR_NAME?'تغییر پوشه گوشی':'انتخاب پوشه در حافظه گوشی')+'</button>'+(DIR_NAME?'<button class="btn ghost" data-act="clearDir">قطع اتصال پوشه</button>':'')+'</div>'
+      :'<p class="hint keep">مرورگر فعلی شما از دسترسی مستقیم به پوشه‌های سیستم پشتیبانی نمی‌کند. از دکمه «ذخیره پشتیبان کامل (ZIP)» در بالا استفاده کنید.</p>')+
+    '</section>';
   }
   return h;
 }
@@ -890,7 +895,10 @@ function saveForm(){
   [acc,acc2].forEach(function(a){if(a&&accountList().indexOf(a)<0){S.accounts=accountList().concat(a);saveMeta()}})
   clearDraft();closeForm();
   if(rcpDirty){
-    if(rcpBlob)saveReceipt(txId,rcpBlob).catch(function(){toast('ذخیره عکس رسید انجام نشد')});
+    if(rcpBlob){
+      saveReceipt(txId,rcpBlob).catch(function(){toast('ذخیره عکس رسید انجام نشد')});
+      saveReceiptToFolder(t,rcpBlob);
+    }
     else{RCP_CACHE.delete(txId);delReceipt(txId).catch(function(){})}
   }
   putTx(t);refreshView();playSound(kind==='inc'?'inc':'exp');toast(old?'تغییرات ذخیره شد':'تراکنش ثبت شد');
@@ -956,6 +964,101 @@ function importData(text){
     if(S.mode==='db')S.txRef.doc(t.id).set(cleanTx(t)).then(next,function(){toast('بازیابی ناقص ماند')});
     else next();
   })();
+}
+function buildFullZip(){
+  var files=[['backup.json',JSON.stringify(backupObj(),null,1)]];
+  var txs=Array.from(S.tx.values()).filter(function(t){return t.hasReceipt});
+  var i=0;
+  function next(){
+    if(i>=txs.length)return Promise.resolve(zipStoreBin(files));
+    var t=txs[i++];
+    return getReceipt(t.id).then(function(blob){
+      if(!blob)return next();
+      return blob.arrayBuffer().then(function(buf){
+        files.push(['receipts/'+t.id+'.jpg',new Uint8Array(buf)]);
+        return next();
+      });
+    }).catch(function(){return next()});
+  }
+  return next();
+}
+function zipStoreBin(files){
+  var enc=new TextEncoder(),parts=[],cen=[],off=0;
+  function u16(n){return [n&255,(n>>>8)&255]}
+  function u32(n){return [n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255]}
+  files.forEach(function(f){
+    var nm=enc.encode(f[0]),d=(f[1] instanceof Uint8Array)?f[1]:enc.encode(String(f[1])),crc=crc32(d);
+    var lh=[].concat(u32(0x04034b50),u16(20),u16(0x0800),u16(0),u16(0),u16(0x21),u32(crc),u32(d.length),u32(d.length),u16(nm.length),u16(0));
+    parts.push(new Uint8Array(lh),nm,d);
+    cen.push(new Uint8Array([].concat(u32(0x02014b50),u16(20),u16(20),u16(0x0800),u16(0),u16(0),u16(0x21),u32(crc),u32(d.length),u32(d.length),u16(nm.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(off))),nm);
+    off+=lh.length+nm.length+d.length;
+  });
+  var csz=0;cen.forEach(function(c){csz+=c.length});
+  var end=new Uint8Array([].concat(u32(0x06054b50),u16(0),u16(0),u16(files.length),u16(files.length),u32(csz),u32(off),u16(0)));
+  var all=parts.concat(cen,[end]),tot=0;all.forEach(function(a){tot+=a.length});
+  var out=new Uint8Array(tot),o=0;all.forEach(function(a){out.set(a,o);o+=a.length});return out;
+}
+function unzipStore(buf){
+  var u=new Uint8Array(buf),dv=new DataView(buf),dec=new TextDecoder(),out=new Map(),p=0;
+  while(p+30<=u.length){
+    var sig=dv.getUint32(p,true);
+    if(sig!==0x04034b50)break;
+    var comp=dv.getUint16(p+8,true),sz=dv.getUint32(p+18,true),nlen=dv.getUint16(p+26,true),elen=dv.getUint16(p+28,true);
+    var name=dec.decode(u.slice(p+30,p+30+nlen));
+    var dStart=p+30+nlen+elen,dEnd=dStart+sz;
+    if(comp===0&&dEnd<=u.length)out.set(name,u.slice(dStart,dEnd));
+    p=dEnd;
+  }
+  return out;
+}
+function importZipFile(file){
+  file.arrayBuffer().then(function(buf){
+    var entries=unzipStore(buf),jsonBytes=entries.get('backup.json');
+    if(!jsonBytes){toast('فایل backup.json داخل ZIP پیدا نشد');return}
+    var jobs=[];
+    entries.forEach(function(bytes,name){
+      if(name.indexOf('receipts/')===0&&name.endsWith('.jpg')){
+        var id=name.slice(9,-4);
+        if(id)jobs.push(saveReceipt(id,new Blob([bytes],{type:'image/jpeg'})));
+      }
+    });
+    Promise.all(jobs).then(function(){
+      importData(new TextDecoder().decode(jsonBytes));
+    }).catch(function(){toast('خطا در بازیابی عکس‌های رسید')});
+  }).catch(function(){toast('خواندن فایل ZIP انجام نشد')});
+}
+function pickFolder(){
+  if(!window.showDirectoryPicker){toast('مرورگر شما از انتخاب پوشه پشتیبانی نمی‌کند');return}
+  window.showDirectoryPicker({mode:'readwrite'}).then(function(handle){
+    DIR_HANDLE=handle;DIR_NAME=handle.name||'پوشه انتخابی';
+    idbPut('dir_handle',handle).catch(function(){});
+    renderMain();toast('پوشه «'+DIR_NAME+'» متصل شد');
+  }).catch(function(e){if(e&&e.name!=='AbortError')toast('دسترسی به پوشه داده نشد')});
+}
+function clearFolder(){
+  DIR_HANDLE=null;DIR_NAME='';
+  idb().then(function(db){var tx=db.transaction('kv','readwrite');tx.objectStore('kv').delete('dir_handle')}).catch(function(){});
+  renderMain();toast('اتصال پوشه قطع شد');
+}
+function restoreFolderHandle(){
+  idbGet('dir_handle').then(function(h){
+    if(!h)return;
+    DIR_HANDLE=h;DIR_NAME=h.name||'پوشه ذخیره‌شده';
+    if(V.tab==='set'&&V.setPage==='bak')renderMain();
+  }).catch(function(){});
+}
+function saveReceiptToFolder(t,blob){
+  if(!DIR_HANDLE||!blob)return;
+  var fname='Rikad_'+t.date+'_'+t.id+'.jpg';
+  DIR_HANDLE.queryPermission({mode:'readwrite'}).then(function(perm){
+    if(perm==='granted')return 'granted';
+    return DIR_HANDLE.requestPermission({mode:'readwrite'});
+  }).then(function(perm){
+    if(perm!=='granted')return;
+    return DIR_HANDLE.getFileHandle(fname,{create:true}).then(function(fh){
+      return fh.createWritable().then(function(w){return w.write(blob).then(function(){return w.close()})});
+    });
+  }).then(function(){toast('رسید در پوشه گوشی هم ذخیره شد')}).catch(function(){});
 }
 var ACT={
   drTog:function(k){V.dr[k]=!V.dr[k];renderMain()},
@@ -1031,6 +1134,26 @@ var ACT={
   sndTest:function(){playSound('exp');setTimeout(function(){playSound('inc')},700)},
   checkUpdate:function(){checkUpdate()},
   shareBackup:function(){shareBackup()},
+  exportZip:function(){
+    toast('در حال آماده‌سازی فایل پشتیبان کامل…');
+    buildFullZip().then(function(bytes){
+      return download('rikad-full-backup-'+todayIso()+'.zip',bytes,'پشتیبان کامل (ZIP)','application/zip');
+    }).then(function(ok){if(ok){lbSet();renderMain();renderMode()}});
+  },
+  shareZip:function(){
+    toast('در حال آماده‌سازی فایل پشتیبان کامل…');
+    buildFullZip().then(function(bytes){
+      var name='rikad-full-backup-'+todayIso()+'.zip';
+      var f=new File([bytes],name,{type:'application/zip'});
+      if(navigator.canShare&&navigator.canShare({files:[f]})){
+        navigator.share({files:[f],title:'پشتیبان کامل Rikad'}).then(function(){lbSet();renderMain()}).catch(function(e){if(e&&e.name!=='AbortError')toast('ارسال انجام نشد')});
+      }else{
+        download(name,bytes,'پشتیبان کامل (ZIP)','application/zip');
+      }
+    });
+  },
+  pickDir:function(){pickFolder()},
+  clearDir:function(){clearFolder()},
   loanNew:function(kind){openForm(null,{loan:kind,person:V.person||''})},
   openP:function(id){V.person=id;V.pConf=V.pRen=false;renderMain();window.scrollTo(0,0)},
   pBack:function(){V.person='';V.pConf=V.pRen=false;renderMain()},
@@ -1159,6 +1282,7 @@ function onField(e){
   else if(f==='famt')updAmtHint();
   else if(f==='import'&&e.type==='change'){
     var file=el.files&&el.files[0];if(!file)return;
+    if(file.name.toLowerCase().endsWith('.zip')||file.type==='application/zip'){importZipFile(file);el.value='';return}
     var r=new FileReader();r.onload=function(){importData(String(r.result))};r.readAsText(file);el.value='';
   }
 }
@@ -1608,7 +1732,7 @@ function startLocal(){
   try{if(!window.claude&&'serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){var hadCtl=!!navigator.serviceWorker.controller;navigator.serviceWorker.register('sw.js').catch(function(){});navigator.serviceWorker.addEventListener('controllerchange',function(){if(hadCtl&&$('#sheet').hidden)location.reload();else if(hadCtl)toast('نسخه‌ی جدید نصب شد. بعد از ثبت، اپ را ببندید و باز کنید.');hadCtl=true})}}catch(e){}
 }
 async function init(){
-  loadPrefs();applyPrefs();loadCustomSound();if(!window.claude)setupBack();
+  loadPrefs();applyPrefs();loadCustomSound();restoreFolderHandle();if(!window.claude)setupBack();
   renderMain();
   var ok=false;
   try{
